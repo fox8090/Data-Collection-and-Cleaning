@@ -12,9 +12,11 @@ import multiprocessing
 import pandas as pd
 from collections import defaultdict
 import spacy
-import logging
-logging.basicConfig(format="%(levelname)s - %(asctime)s: %(message)s", datefmt="%H:%M:%S", level=logging.INFO)
-
+#import logging
+#logging.basicConfig(format="%(levelname)s - %(asctime)s: %(message)s", datefmt="%H:%M:%S", level=logging.INFO)
+import gensim
+from gensim.models import word2vec
+import platform
 
 
 #### Getting keywords
@@ -26,7 +28,7 @@ for cell in range(2, sheet.max_column + 1):
     keywords.append(sheet.cell(1, cell).value)
 
 #Take query and add 100 articles to csv file
-def getArticles(query, fileName):
+def getArticles(query, writer):
     query = '+'.join(query.split(" "))
     url = 'https://www.bbc.co.uk/search?q=' + query
     page = 1
@@ -76,9 +78,7 @@ def getArticles(query, fileName):
                     if isArticle:
                         articleLinks.append(item)
                         #print(isArticle.get_text(separator=' ').translate(str.maketrans('', '', string.punctuation)), item)
-                        with open(fileName, 'a', newline='', encoding="utf-8") as theFile:
-                            writer = csv.writer(theFile, delimiter='|')
-                            writer.writerow([query, item, isArticle.get_text(separator=' ').translate(str.maketrans('', '', string.punctuation)).replace("|", " ").replace("\n", " ")])
+                        writer.writerow([query, item, isArticle.get_text(separator=' ').replace("|", " ").replace("\n", " ")])
                     #HERE MAKE GET REQUEST FOR URL. IF IT HAS AN ARTICLE TAG THEN ADD IT STRAIGHT TO CSV. I THINK
                         #write to csv            
 
@@ -99,9 +99,62 @@ def scrapeAll(keywords):
         writer = csv.writer(theFile, delimiter='|')
         writer.writerow(["Keyword", "URL", "Content"])
         for keyword in keywords:
-            getArticles(keyword, fileName)
+            getArticles(keyword, writer)
             print(keyword + " IS NOW DONE")
 
 #SCRAPING ALREADY DONE WITH GREAT SUCCESS BUT USE THIS TO CALL
 #scrapeAll(keywords)
+#exit()
 
+datafile = pd.read_csv("keywords_2021-04-08_14-36-06.csv", delimiter='|') # need to change this
+print(datafile.shape)
+print(datafile.head())
+
+def preprocess(df, keyword):
+    text = [] 
+    smallSet =  df[df['Keyword'].str.contains(keyword, case=False)]
+    for article in smallSet['Content'].values.tolist():
+        text.append(gensim.utils.simple_preprocess(article))
+    return text
+
+
+def getDistance(df, phrase1, phrase2):
+    phrase1 = phrase1.lower()
+    phrase2 = phrase2.lower()
+    #make vocab
+    vocab = []
+    for iWord in phrase1.split():
+        vocab.extend(preprocess(df, iWord))
+    for jWord in phrase2.split():
+        vocab.extend(preprocess(df, jWord))
+    #train model
+    model = word2vec.Word2Vec(vocab, vector_size=150, window=10, min_count=2, workers=10)
+    #get distance for each word 
+    distance = 0
+    for iWord in phrase1.split():
+        value = 0
+        for jWord in phrase2.split():
+            value += model.wv.similarity(iWord, jWord)
+        distance += value / len(phrase2.split())
+    print("Distance between '" + phrase1 +"' and '" + phrase2 + "' is: " + str(distance / len(phrase1.split())))
+    return distance / len(phrase1.split())
+
+getDistance(datafile, 'spy', 'attack')
+
+'''
+print(keyword)
+vocab = preprocess(datafile, keyword)
+model = word2vec.Word2Vec(vocab,
+        vector_size=150,
+        window=10,
+        min_count=2,
+        workers=10)
+
+keyword = keyword.replace(' ', '_')
+print(keyword)
+sim = model.wv.most_similar(positive=keyword)
+print("MOST LIKE ", keyword, sim)
+'''        
+
+
+    
