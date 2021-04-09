@@ -3,20 +3,11 @@ import requests
 from requests.exceptions import HTTPError
 import csv
 import openpyxl
-import string
-import datetime
-import string
 
-import re
-import multiprocessing
 import pandas as pd
-from collections import defaultdict
-import spacy
-#import logging
-#logging.basicConfig(format="%(levelname)s - %(asctime)s: %(message)s", datefmt="%H:%M:%S", level=logging.INFO)
 import gensim
 from gensim.models import word2vec
-import platform
+from nltk.corpus import stopwords
 
 
 #### Getting keywords
@@ -77,38 +68,21 @@ def getArticles(query, writer):
                     isArticle = toCheck.find('article')
                     if isArticle:
                         articleLinks.append(item)
-                        #print(isArticle.get_text(separator=' ').translate(str.maketrans('', '', string.punctuation)), item)
                         writer.writerow([query, item, isArticle.get_text(separator=' ').replace("|", " ").replace("\n", " ")])
-                    #HERE MAKE GET REQUEST FOR URL. IF IT HAS AN ARTICLE TAG THEN ADD IT STRAIGHT TO CSV. I THINK
-                        #write to csv            
-
         if flag:
             break
         page += 1
     print(articleLinks, len(articleLinks), len(set(articleLinks)))
     return articleLinks
 
-#query = 'Advanced Persistent Threat'
-#articleLinks = getArticles(query)
-
 def scrapeAll(keywords):
-    now = datetime.datetime.now()
-    formatted = now.strftime("%Y-%m-%d_%H-%M-%S")
-    fileName = 'keywords_'+formatted+'.csv'
+    fileName = 'webcontent.csv'
     with open(fileName, 'w', newline='', encoding="utf-8") as theFile:
         writer = csv.writer(theFile, delimiter='|')
         writer.writerow(["Keyword", "URL", "Content"])
         for keyword in keywords:
             getArticles(keyword, writer)
             print(keyword + " IS NOW DONE")
-
-#SCRAPING ALREADY DONE WITH GREAT SUCCESS BUT USE THIS TO CALL
-#scrapeAll(keywords)
-#exit()
-
-datafile = pd.read_csv("keywords_2021-04-08_14-36-06.csv", delimiter='|') # need to change this
-print(datafile.shape)
-print(datafile.head())
 
 def preprocess(df, keyword):
     text = [] 
@@ -117,18 +91,25 @@ def preprocess(df, keyword):
         text.append(gensim.utils.simple_preprocess(article))
     return text
 
-
 def getDistance(df, phrase1, phrase2):
     phrase1 = phrase1.lower()
     phrase2 = phrase2.lower()
+    if phrase1 == phrase2:
+        return 1
     #make vocab
     vocab = []
     for iWord in phrase1.split():
         vocab.extend(preprocess(df, iWord))
     for jWord in phrase2.split():
         vocab.extend(preprocess(df, jWord))
+    #ADDITIONAL CLEANING
+    #remove stopwords
+    filtered = []
+    for word in vocab:
+        if word not in stopwords.words('english'):
+            filtered.append(word)
     #train model
-    model = word2vec.Word2Vec(vocab, vector_size=150, window=10, min_count=2, workers=10)
+    model = word2vec.Word2Vec(filtered, vector_size=150, window=10, min_count=2, workers=10)
     #get distance for each word 
     distance = 0
     for iWord in phrase1.split():
@@ -136,25 +117,18 @@ def getDistance(df, phrase1, phrase2):
         for jWord in phrase2.split():
             value += model.wv.similarity(iWord, jWord)
         distance += value / len(phrase2.split())
-    print("Distance between '" + phrase1 +"' and '" + phrase2 + "' is: " + str(distance / len(phrase1.split())))
     return distance / len(phrase1.split())
 
-getDistance(datafile, 'spy', 'attack')
-
-'''
-print(keyword)
-vocab = preprocess(datafile, keyword)
-model = word2vec.Word2Vec(vocab,
-        vector_size=150,
-        window=10,
-        min_count=2,
-        workers=10)
-
-keyword = keyword.replace(' ', '_')
-print(keyword)
-sim = model.wv.most_similar(positive=keyword)
-print("MOST LIKE ", keyword, sim)
-'''        
-
-
-    
+scrapeAll(keywords)
+datafile = pd.read_csv("webcontent.csv", delimiter='|') # need to change this
+items = []
+cols = ['Keywords']
+for keyword in keywords:
+    item = [keyword]
+    cols.append(keyword)
+    for other in keywords:
+        distance = getDistance(datafile, keyword, other)
+        item.append(distance)
+    items.append(item)
+distancedf = pd.DataFrame(items, columns=cols)
+distancedf.to_excel("distance.xlsx", index=False)
