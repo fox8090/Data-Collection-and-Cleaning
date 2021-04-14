@@ -8,6 +8,8 @@ import pandas as pd
 import gensim
 from gensim.models import word2vec
 from nltk.corpus import stopwords
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 #### Getting keywords
@@ -119,16 +121,26 @@ def getDistance(df, phrase1, phrase2):
         distance += value / len(phrase2.split())
     return distance / len(phrase1.split())
 
-scrapeAll(keywords)
+#scrapeAll(keywords)
+'''
 datafile = pd.read_csv("webcontent.csv", delimiter='|') # need to change this
 items = []
 cols = ['Keywords']
 for keyword in keywords:
+    print(keyword)
     item = [keyword]
     cols.append(keyword)
     for other in keywords:
+        print(other)
         distance = getDistance(datafile, keyword, other)
         item.append(distance)
     items.append(item)
 distancedf = pd.DataFrame(items, columns=cols)
 distancedf.to_excel("distance.xlsx", index=False)
+'''
+
+distancedf = pd.read_excel('distance.xlsx', index_col=0)
+
+sns.heatmap(distancedf, cmap='coolwarm', robust=True, annot=True, annot_kws={'size':8}, cbar=False, square=True)
+
+plt.show()
