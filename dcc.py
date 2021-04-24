@@ -3,7 +3,7 @@ import requests
 from requests.exceptions import HTTPError
 import csv
 import openpyxl
-
+import numpy as np
 import pandas as pd
 import gensim
 from gensim.models import word2vec
@@ -12,7 +12,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-#### Getting keywords
+
+
+
+##Problem 1 & Problem 2 Combined
+
+#Getting keywords
 path = 'keywords.xlsx'
 wb = openpyxl.load_workbook(path)
 sheet = wb.active
@@ -86,6 +91,12 @@ def scrapeAll(keywords):
             getArticles(keyword, writer)
             print(keyword + " IS NOW DONE")
 
+
+
+
+
+##Problem 3
+
 def preprocess(df, keyword):
     text = [] 
     smallSet =  df[df['Keyword'].str.contains(keyword, case=False)]
@@ -104,7 +115,7 @@ def getDistance(df, phrase1, phrase2):
         vocab.extend(preprocess(df, iWord))
     for jWord in phrase2.split():
         vocab.extend(preprocess(df, jWord))
-    #ADDITIONAL CLEANING
+    #additional cleaning
     #remove stopwords
     filtered = []
     for word in vocab:
@@ -121,9 +132,9 @@ def getDistance(df, phrase1, phrase2):
         distance += value / len(phrase2.split())
     return distance / len(phrase1.split())
 
-#scrapeAll(keywords)
-'''
-datafile = pd.read_csv("webcontent.csv", delimiter='|') # need to change this
+scrapeAll(keywords)
+
+datafile = pd.read_csv("webcontent.csv", delimiter='|')
 items = []
 cols = ['Keywords']
 for keyword in keywords:
@@ -137,10 +148,16 @@ for keyword in keywords:
     items.append(item)
 distancedf = pd.DataFrame(items, columns=cols)
 distancedf.to_excel("distance.xlsx", index=False)
-'''
+
+
+
+
+
+#Problem 4
 
 distancedf = pd.read_excel('distance.xlsx', index_col=0)
 
-sns.heatmap(distancedf, cmap='coolwarm', robust=True, annot=True, annot_kws={'size':8}, cbar=False, square=True)
+mask = np.triu(distancedf.corr())
+sns.heatmap(distancedf, cmap=sns.diverging_palette(220, 20, n=200), robust=True, annot=True, annot_kws={'size':8}, cbar=True, square=True, fmt ='.3g', mask=mask)
 
 plt.show()
